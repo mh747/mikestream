@@ -1,5 +1,7 @@
 exports.findAll = function(req, res) {
-	res.send("Retrieve all directors");
+	var model = require('../models/directorsModel.js');
+	model.getDirectors(req, res);
+	//res.send("Retrieve all directors");
 };
 
 exports.findById = function(req, res) {
