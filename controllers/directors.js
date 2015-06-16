@@ -2,7 +2,6 @@ exports.findAll = function(req, res) {
 	var model = require('../models/directorsModel.js');
 	model.getDirectors(function(results) {
 		res.json(results);
-		console.log(results);
 
 		/*var index;
 		for(index=0; index<results.length; index++) {
@@ -15,7 +14,9 @@ exports.findAll = function(req, res) {
 
 exports.findById = function(req, res) {
 	var model = require('../models/directorsModel.js');
-	model.getDirectorById(req.params.id, res);
+	model.getDirectorById(req.params.id, function(results){
+		res.json(results);
+	});
 	//res.send("Retrieve director id: " + req.params.id);
 };
 
