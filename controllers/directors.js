@@ -33,5 +33,18 @@ exports.add = function(req, res) {
 };
 
 exports.update = function(req, res) {
-	res.send("Update director id: " + req.params.id);
+	//First, check headers for authorization key
+	if(!req.header('Authorization')) {
+		//Authorization string not sent in headers
+		res.status(403);
+		res.send("Must include authorization string in header");
+	} else {
+		var model = require('../models/directorsModel.js');
+		model.updateDirectorByLsId(req.params.id, req.body.favorite_camera,
+			req.body.favorite_movies, req.header('Authorization'), 
+			function(response_code, results) {
+				res.status(response_code);
+				res.json(results);
+			});
+	}
 };
