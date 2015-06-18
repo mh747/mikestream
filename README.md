@@ -14,7 +14,7 @@ To run an instance of Mikestream locally, you will need to clone this repository
 
 ```
 
-% git clone
+% git clone https://github.com/mh747/mikestream.git
 
 ````
 
@@ -46,6 +46,27 @@ mysql> CREATE TABLE user (
     ->     );
 
 ```
+
+You will also need to enter your details into the /mikestream/database/db.js file.
+
+In your terminal:
+```
+% cd <...>/mikestream/database/
+% vim db.js            //You can replace vim with your text editor of choice
+```
+
+In db.js, make the following changes:
+```javascript
+...
+var pool = mysql.createPool({
+	host	: "localhost",
+	user	: "test",   //--> replace with your db username
+	password: "test",   //--> replace with your db password
+	database: "mikestream"
+});
+...
+```
+Save file, close file, on to the next step.
 
 ### Starting Server
 
