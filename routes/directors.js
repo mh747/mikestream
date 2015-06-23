@@ -12,4 +12,14 @@ router.route('/directors').get(function(req, res) {
 	});
 });
 
+router.route('/directors/:id').get(function(req, res) {
+	Director.findById(req.params.id, function(err, director) {
+		if(err) {
+			return res.send(err);
+		}
+
+		res.json(director);
+	});
+});
+
 module.exports = router;
