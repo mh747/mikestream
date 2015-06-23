@@ -1,0 +1,25 @@
+{
+  "name": "mikestream",
+  "version": "1.0.0",
+  "description": "API to interact with Livestream service.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mh747/mikestream.git"
+  },
+  "author": "Michael Henderson",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mh747/mikestream/issues"
+  },
+  "homepage": "https://github.com/mh747/mikestream#readme",
+  "dependencies": {
+    "body-parser": "^1.13.1",
+    "express": "^4.13.0",
+    "redis": "^0.12.1",
+    "request": "^2.58.0"
+  }
+}
