@@ -4,7 +4,7 @@ Director.findAll = function(callback) {
 	var client = require('../data');
 
 	//Find how many users we're dealing with
-	client.get('next_user_id', function(err, num_users) {
+	client.get('mikestream_next_user_id', function(err, num_users) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
@@ -16,7 +16,7 @@ Director.findAll = function(callback) {
 		}
 
 		//Find list of user ids and livestream ids
-		client.hgetall('users', function(err, users) {
+		client.hgetall('mikestream_users', function(err, users) {
 			if(err) {
 				err.statusCode = 500;
 				return callback(err, null);
@@ -81,7 +81,7 @@ Director.findById = function(id, callback) {
 	data.push(record);
 
 	//Testing to see if user exists
-	client.hget('users', id, function(err, reply) {
+	client.hget('mikestream_users', id, function(err, reply) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
@@ -161,7 +161,7 @@ Director.getNewDirector = function(livestream_id, callback) {
 
 
 	// Second 'req' -- checking that user doesn't already exist in db
-	client.hexists('users', director.livestream_id, function(err, reply) {
+	client.hexists('mikestream_users', director.livestream_id, function(err, reply) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
@@ -181,7 +181,7 @@ Director.getNewDirector = function(livestream_id, callback) {
 Director.save = function(director, callback) {
 	var client = require('../data');
 
-	client.get('next_user_id', function(err, next_user_id) {
+	client.get('mikestream_next_user_id', function(err, next_user_id) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
@@ -193,14 +193,14 @@ Director.save = function(director, callback) {
 		var dataSources = 2;
 		var completedReqs = 0;
 
-		client.hset('users', director.livestream_id, next_user_id, function(err, reply) {
+		client.hset('mikestream_users', director.livestream_id, next_user_id, function(err, reply) {
 			if(err) {
 				err.statusCode = 500;
 				return callback(err, null);
 			}
 			completedReqs++;
 			if(completedReqs == dataSources) {
-				client.incr('next_user_id', function(err, reply) {
+				client.incr('mikestream_next_user_id', function(err, reply) {
 					if(err) {
 						err.statusCode = 500;
 						return callback(err, null);
@@ -210,7 +210,7 @@ Director.save = function(director, callback) {
 			}
 		});
 
-		client.hmset('user:' + next_user_id, 'livestream_id', director.livestream_id,
+		client.hmset('mikestream_user:' + next_user_id, 'livestream_id', director.livestream_id,
 			'favorite_camera', director.favorite_camera, 'favorite_movies', director.favorite_movies,
 			function(err, reply) {
 				if(err) {
@@ -219,7 +219,7 @@ Director.save = function(director, callback) {
 				}
 				completedReqs++;
 				if(completedReqs == dataSources) {
-					client.incr('next_user_id', function(err, reply) {
+					client.incr('mikestream_next_user_id', function(err, reply) {
 						if(err) {
 							err.statusCode = 500;
 							return callback(err, null);
@@ -234,13 +234,13 @@ Director.save = function(director, callback) {
 Director.update = function(director, callback) {
 	var client = require('../data');
 
-	client.hget('users', director.livestream_id, function(err, user_id) {
+	client.hget('mikestream_users', director.livestream_id, function(err, user_id) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
 		}
 
-		client.hmset('user:' + user_id, 'favorite_camera', director.favorite_camera, 
+		client.hmset('mikestream_user:' + user_id, 'favorite_camera', director.favorite_camera, 
 			'favorite_movies', director.favorite_movies, function(err, reply) {
 				if(err) {
 					err.statusCode = 500;
@@ -275,7 +275,7 @@ getLSDataForRecord = function(arr, index, livestream_id, callback) {
 
 getDBDataForRecord = function(arr, index, user_id, callback) {
 	var client = require('../data');
-	client.hmget('user:' + user_id, 'favorite_camera', 'favorite_movies', function(err, reply) {
+	client.hmget('mikestream_user:' + user_id, 'favorite_camera', 'favorite_movies', function(err, reply) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, arr);
