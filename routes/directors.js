@@ -62,6 +62,17 @@ router.route('/directors/:id').put(function(req, res) {
 			return res.send(err.message);
 		}
 
+		//checking authorization header
+		var crypto = require('crypto');
+		var md5sum = crypto.createHash('md5');
+		md5sum.update(director.full_name);
+		var hashed = md5sum.digest('hex');
+		if(req.header('Authorization') != 'Bearer ' + hashed) {
+			console.log('should be: Bearer ' + hashed);
+			res.status(403);
+			return res.send('Correct authorization key must be sent in header for PUT.');
+		}
+
 		if(req.body.favorite_camera) {
 			director.favorite_camera = req.body.favorite_camera;
 		}
