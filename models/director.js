@@ -200,6 +200,12 @@ Director.save = function(director, callback) {
 			}
 			completedReqs++;
 			if(completedReqs == dataSources) {
+				client.incr('next_user_id', function(err, reply) {
+					if(err) {
+						err.statusCode = 500;
+						return callback(err, null);
+					}
+				});
 				return callback(null, director);
 			}
 		});
@@ -213,6 +219,12 @@ Director.save = function(director, callback) {
 				}
 				completedReqs++;
 				if(completedReqs == dataSources) {
+					client.incr('next_user_id', function(err, reply) {
+						if(err) {
+							err.statusCode = 500;
+							return callback(err, null);
+						}
+					});
 					return callback(null, director);
 				}
 		});
@@ -273,4 +285,5 @@ getDBDataForRecord = function(arr, index, user_id, callback) {
 		callback(null, arr);
 	});
 }
+
 module.exports = Director;
