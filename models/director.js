@@ -117,175 +117,126 @@ Director.findById = function(id, callback) {
 
 }
 
-Director.add = function(director, callback) {
+Director.getNewDirector = function(livestream_id, callback) {
 	var client = require('../data');
-	//First, make sure director isn't already in system
+
+	var director = {
+		'livestream_id': livestream_id,
+		full_name: '',
+		dob: '',
+		favorite_camera: '',
+		favorite_movies: ''
+	};
+
+	var completedReqs = 0;
+	var dataSources = 2;
+
+    //First 'req' -- http request for livestream data
+	var request = require('request');
+	request({
+		uri: "https://api.new.livestream.com/accounts/" + director.livestream_id,
+		method: "GET",
+		timeout: 10000,
+		followRedirect: true,
+		maxRedirects: 10
+	}, function(err, response, body) {
+		if(err) {
+			err.statusCode = 500;
+			return callback(err, null);
+		}
+		if(response.statusCode == 404) {
+			var err = new Error('ID provided is not a valid Livestream Account ID');
+			err.statusCode = 400;
+			return callback(err, null);
+		}
+
+		var parsed = JSON.parse(body);
+		director.full_name = parsed.full_name;
+		director.dob = parsed.dob;
+		completedReqs++;
+		if(completedReqs == dataSources) {
+			return callback(null, director);
+		}
+	});
+
+
+	// Second 'req' -- checking that user doesn't already exist in db
 	client.hexists('users', director.livestream_id, function(err, reply) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
 		}
 		if(reply === 1) {
-			var err = new Error("Livestream ID is already registered as an account");
+			var err = new Error('Livestream ID is already registered as an account');
 			err.statusCode = 400;
 			return callback(err, null);
 		}
+		completedReqs++;
+		if(completedReqs == dataSources) {
+			return callback(null, director);
+		}
+	});
+}
 
-		//Setting up return object
-		var data = {
-			livestream_id: director.livestream_id,
-			full_name: '',
-			dob: '',
-			favorite_camera: director.favorite_camera,
-			favorite_movies: director.favorite_movies
-		};
+Director.save = function(director, callback) {
+	var client = require('../data');
+
+	client.get('next_user_id', function(err, next_user_id) {
+		if(err) {
+			err.statusCode = 500;
+			return callback(err, null);
+		}
+		if(!next_user_id) {
+			next_user_id = 0;
+		}
 
 		var dataSources = 2;
 		var completedReqs = 0;
 
-		//Database operations and http call to livestream run async
-		client.get('next_user_id', function(err, next_user_id) {
+		client.hset('users', director.livestream_id, next_user_id, function(err, reply) {
 			if(err) {
 				err.statusCode = 500;
 				return callback(err, null);
 			}
-			if(!next_user_id) {
-				next_user_id = 0;
+			completedReqs++;
+			if(completedReqs == dataSources) {
+				return callback(null, director);
 			}
-			console.log('entering user ' + next_user_id);
-			console.log(director.livestream_id);
+		});
 
-			//Lookup user to make sure its valid Livestream ID
-			var request = require('request');
-			request({
-				uri: "https://api.new.livestream.com/accounts/" + director.livestream_id,
-				method: "GET",
-				timeout: 10000,
-				followRedirect: true,
-				maxRedirects: 10
-			}, function(err, response, body) {
+		client.hmset('user:' + next_user_id, 'livestream_id', director.livestream_id,
+			'favorite_camera', director.favorite_camera, 'favorite_movies', director.favorite_movies,
+			function(err, reply) {
 				if(err) {
 					err.statusCode = 500;
 					return callback(err, null);
 				}
-
-				if(response.statusCode !== 200) {
-					err = new Error("User ID " + director.livestream_id + " is not a valid user.");
-					err.statusCode = 400;
-					return callback(err, null);
-				}
-
-				//Adding to db and processing http response async
-				client.hmset('user:' + next_user_id, 'livestream_id', director.livestream_id, 
-				'favorite_camera', director.favorite_camera, 'favorite_movies', director.favorite_movies,
-				function(err, reply) {
-					if(err) {
-						err.statusCode = 500;
-						return callback(err, null);
-					}
-
-					client.hset('users', director.livestream_id, next_user_id, function(err, reply) {
-						if(err) {
-							err.statusCode = 500;
-							return callback(err, null);
-						}
-
-						client.incr('next_user_id', function(err, reply) {
-							if(err) {
-								err.statusCode = 500;
-								return callback(err, null);
-							}
-
-							completedReqs++;
-							if(completedReqs === dataSources) {
-								return callback(null, data);
-							}
-						});
-					});
-				});
-
-				var parsed = JSON.parse(body);
-				data.full_name = parsed.full_name;
-				data.dob = parsed.dob;
 				completedReqs++;
-				if(completedReqs === dataSources) {
-					return callback(null, data);
+				if(completedReqs == dataSources) {
+					return callback(null, director);
 				}
-			});		
-
 		});
 	});
 }
 
-Director.modify = function(id, fields, callback) {
+Director.update = function(director, callback) {
 	var client = require('../data');
-	//Using given livestream id to lookup local user record
 
-	client.hget('users', id, function(err, user_id) {
+	client.hget('users', director.livestream_id, function(err, user_id) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
 		}
 
-		//Updating local user fields, and sending http request to livestream for
-		//return value
-		var data = {
-			livestream_id: id,
-			full_name: '',
-			dob: '',
-			favorite_camera: '',
-			favorite_movies: ''
-		}
-
-		var dataSources = 2;
-		var completedReqs = 0;
-
-		//HTTP request
-		var request = require('request');
-		request({
-			uri: "https://api.new.livestream.com/accounts/" + id,
-			method: "GET",
-			timeout: 10000,
-			followRedirect: true,
-			maxRedirects: 10
-		}, function(err, response, body) {
-			if(err) {
-				err.statusCode = 500;
-				return callback(err, null);
-			}
-
-			var parsed = JSON.parse(body);
-			data.full_name = parsed.full_name;
-			data.dob = parsed.dob;
-			completedReqs++;
-			if(completedReqs === dataSources) {
-				return callback(null, data);
-			}
-		});
-
-		client.hmset('user:' + user_id, fields, function(err, reply) {
-			if(err) {
-				err.statusCode = 500;
-				return callback(err, null);
-			}
-
-			//Now set the return data to new value
-			client.hmget('user:' + user_id, 'favorite_camera', 'favorite_movies', function(err, reply) {
+		client.hmset('user:' + user_id, 'favorite_camera', director.favorite_camera, 
+			'favorite_movies', director.favorite_movies, function(err, reply) {
 				if(err) {
 					err.statusCode = 500;
 					return callback(err, null);
 				}
-				data.favorite_camera = reply[0];
-				data.favorite_movies = reply[1];
-				completedReqs++;
-				if(completedReqs === dataSources) {
-					return callback(null, data);
-				}
-			});
+				return callback(null, director);
 		});
-		
 	});
-
 }
 
 //Helper functions for 'GET' methods 
