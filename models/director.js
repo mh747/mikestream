@@ -1,131 +1,120 @@
 var Director = {};
 
 Director.findAll = function(callback) {
-	//finding all user keys in redis
 	var client = require('../data');
-	var data = [];
 
-	client.get('next_user_id', function(err, reply) {
+	//Find how many users we're dealing with
+	client.get('next_user_id', function(err, num_users) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
 		}
-
-		if(!reply) {
+		if(!num_users) {
 			var err = new Error("There are no users in the system");
 			err.statusCode = 404;
 			return callback(err, null);
 		}
 
-		var numRecords = +reply;  //Force type int
-		var completedReqs = 0;
-		console.log('Got next-user-id: ' + numRecords);
-		var i;
-		
-		for(i=0; i<numRecords; i++) {
-			console.log('i = ' + i);
-			client.hmget('user:' + i, 'livestream_id', 'favorite_camera', 'favorite_movies', function(err, reply) {
-				if(err) {
-					err.statusCode = 500;
-					return callback(err, null);
-				}
-				console.log('got data from db');
+		//Find list of user ids and livestream ids
+		client.hgetall('users', function(err, users) {
+			if(err) {
+				err.statusCode = 500;
+				return callback(err, null);
+			}
+
+			var data = [];
+			var dataSources = 2;
+			var totalReqs = num_users * dataSources;
+			var completedReqs = 0;
+
+			//Iterate through users and make data calls asynchonously
+			for(var user in users) {
+				var user_id = users[user];
+				var livestream_id = user;
+
 				var record = {
-					livestream_id: reply[0],
+					'livestream_id': livestream_id,
 					full_name: '',
 					dob: '',
-					favorite_camera: reply[1],
-					favorite_movies: reply[2]
+					favorite_camera: '',
+					favorite_movies: ''
 				};
-				var request = require('request');
-				request({
-					uri: "https://api.new.livestream.com/accounts/" + reply[0],
-					method: "GET",
-					timeout: 10000,
-					followRedirect: true,
-					maxRedirects: 10
-				}, function(err, response, body) {
+
+				var index = data.length;
+				data.push(record);
+
+				getLSDataForRecord(data, index, livestream_id, function(err, data) {
 					if(err) {
-						err.statusCode = 500;
 						return callback(err, null);
 					}
-					console.log('got data from livestream');
-					var parsed = JSON.parse(body);
-					record.full_name = parsed.full_name;
-					record.dob = parsed.dob;
-					data.push(record);
 					completedReqs++;
-
-					if(completedReqs === numRecords) 
+					if(completedReqs == totalReqs) {
 						return callback(null, data);
+					}
 				});
-				
-			});
-		}
+				getDBDataForRecord(data, index, user_id, function(err, data) {
+					if(err) {
+						return callback(err, null);
+					}
+					completedReqs++;
+					if(completedReqs == totalReqs) {
+						return callback(null, data);
+					}
+				});
+			}
+		});
+
 	});
 }
 
 Director.findById = function(id, callback) {
 	var client = require('../data');
-	
-	//Setting up return object
-	var data = {
+	//Setting up return array
+	var data = [];
+	var record = {
 		livestream_id: id,
 		full_name: '',
 		dob: '',
 		favorite_camera: '',
-		favorite_movies: '' 
+		favorite_movies: ''
 	};
+	data.push(record);
 
-	//Now finding local user id for given livestream id
+	//Testing to see if user exists
 	client.hget('users', id, function(err, reply) {
 		if(err) {
 			err.statusCode = 500;
 			return callback(err, null);
 		}
 		if(!reply) {
-			var err = new Error("User with id:" + id + " does not exist");
+			var err = new Error("User with id " + id + " does not exist");
 			err.statusCode = 404;
 			return callback(err, null);
 		}
-		var dataSources = 2; // Represents number of sources for data (database, livestream api)
-		var completedReqs = 0; // Number of finished requests for data
-		client.hmget('user:' + reply, 'favorite_camera', 'favorite_movies', function(err, reply) {
+		var user_id = reply;
+		var dataSources = 2;
+		var completedReqs = 0;
+
+		getLSDataForRecord(data, 0, id, function(err, data) {
 			if(err) {
-				err.statusCode = 500;
 				return callback(err, null);
 			}
-			data.favorite_camera = reply[0];
-			data.favorite_movies = reply[1];
 			completedReqs++;
-			if(completedReqs === dataSources) {     //If all requests are done
-				return callback(null, data);
+			if(completedReqs == dataSources) {
+				return callback(null, data[0]);
 			}
 		});
-
-		// Asynchronously running http request to livstream
-		var request = require('request');
-		request({
-			uri: "https://api.new.livestream.com/accounts/" + id,
-			method: "GET",
-			timeout: 10000,
-			followRedirect: true,
-			maxRedirects: 10
-		}, function(err, response, body) {
+		getDBDataForRecord(data, 0, user_id, function(err, data) {
 			if(err) {
-				err.statusCode = 500;
 				return callback(err, null);
 			}
-			var parsed = JSON.parse(body);
-			data.full_name = parsed.full_name;
-			data.dob = parsed.dob;
 			completedReqs++;
-
-			if(completedReqs === dataSources) {
-				return callback(null, data);
+			if(completedReqs == dataSources) {
+				return callback(null, data[0]);
 			}
 		});
 	});
+
 }
 
 Director.add = function(director, callback) {
@@ -299,4 +288,38 @@ Director.modify = function(id, fields, callback) {
 
 }
 
+//Helper functions for 'GET' methods 
+
+getLSDataForRecord = function(arr, index, livestream_id, callback) {
+	var request = require('request');
+	request({
+		uri: "https://api.new.livestream.com/accounts/" + livestream_id,
+		method: "GET",
+		timeout: 10000,
+		followRedirect: true,
+		maxredirects: 10
+	}, function(err, response, body) {
+		if(err) {
+			err.statusCode = 500;
+			return callback(err, arr);
+		}
+		var parsed = JSON.parse(body);
+		arr[index].full_name = parsed.full_name;
+		arr[index].dob = parsed.dob;
+		callback(null, arr);
+	});
+}
+
+getDBDataForRecord = function(arr, index, user_id, callback) {
+	var client = require('../data');
+	client.hmget('user:' + user_id, 'favorite_camera', 'favorite_movies', function(err, reply) {
+		if(err) {
+			err.statusCode = 500;
+			return callback(err, arr);
+		}
+		arr[index].favorite_camera = reply[0];
+		arr[index].favorite_movies = reply[1];
+		callback(null, arr);
+	});
+}
 module.exports = Director;
